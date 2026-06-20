@@ -121,13 +121,48 @@ URL: https://www.bny.com/assets/corporate/documents/pdf/iso-20022/learning-guide
 
 ## fedwire-faim-comparison
 
-**Fedwire ISO 20022 Quick Reference Guide**, "Fedwire Funds Service
-Comparison – FAIM 3.0.7 Tags to ISO 20022 Data Elements" section
-(same document as fedwire-qrg above, pages ~23-25 in the July 2024
-revision). Documents several FAIM tags — the {6100}, {6200}, {6210},
-{6300}, {6310}, {6500} series — as having "No equivalent" in the
-ISO 20022 / MX format, meaning legacy systems carrying this data have
-no source field to map from when generating these MX elements.
+**STATUS: UNVERIFIED, NOT USED IN ANY SHIPPED RULE (2026-06-20).**
+This citation was carried over from early research notes and cited in
+mandatory_gap_rule.py's original (pre-implementation) docstring, but
+the underlying Fedwire QRG page (pages ~23-25, "Comparison – FAIM
+3.0.7 Tags to ISO 20022 Data Elements") was never actually fetched or
+checked directly -- only referenced secondhand. When mandatory_gap_rule.py
+was actually implemented, this framing was replaced with the verified
+uetr-fedwire-mandatory finding below instead of building a rule on an
+unconfirmed citation. Leaving this entry in place rather than deleting
+it, so the unverified claim is visible and can be checked properly in
+a future session if someone wants to add a second mandatory-gap rule.
+
+**Original unverified claim, for the record:** Fedwire ISO 20022 Quick
+Reference Guide documents several FAIM tags — the {6100}, {6200},
+{6210}, {6300}, {6310}, {6500} series — as having "No equivalent" in
+the ISO 20022 / MX format.
+
+## uetr-fedwire-mandatory
+
+**Federal Reserve Financial Services — Format Frequently Asked
+Questions.** States plainly that UETR is a mandatory data element for
+value messages (pacs.008, pacs.009, pacs.004), provides a universally
+unique end-to-end transaction reference, and that the Fedwire Funds
+Service checks UETR for proper format (though not for uniqueness).
+
+URL: https://www.frbservices.org/resources/financial-services/wires/faq/iso-20022/format
+
+**Verified against the actual vendored XSD (2026-06-20):** UETR has
+minOccurs="0" in PaymentIdentification7 -- genuinely optional at the
+schema level. This is the clean, directly-sourced version of the
+"network requires more than the schema does" gotcha this project is
+built around: a message can omit UETR entirely, validate against the
+XSD with zero errors, and still get rejected by Fedwire specifically.
+Unlike the FAIM-comparison claim above, both halves of this claim
+(schema optionality, network mandate) are independently confirmed
+against primary sources.
+
+CAVEAT: this is documented as a Fedwire-specific requirement in the
+source above. Don't assume every ISO 20022 network enforces UETR the
+same way, even though SWIFT's broader gpi/UETR mandate for
+cross-border payments suggests it's increasingly universal in
+practice -- confirm for your specific target network.
 
 ## xsd-source
 
