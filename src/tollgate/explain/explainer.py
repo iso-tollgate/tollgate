@@ -12,6 +12,21 @@ matching the documented API shape, but has not actually been called
 and verified end-to-end. Run tests/test_explainer.py with a real
 ANTHROPIC_API_KEY set (it's skipped automatically otherwise) before
 trusting this in the eval harness or CLI.
+
+DATA HANDLING (2026-06-20): violation.raw_value is deliberately NEVER
+sent to the API. It can contain the full content of a sensitive
+field -- a real person's or company's name, an address fragment, taken
+directly from a real payment message the user is checking. Tollgate's
+entire premise is processing real bank payment data; sending PII to a
+third-party API without explicit, informed consent is not acceptable
+here. See prompts.py's EXPLAIN_VIOLATION_USER_TEMPLATE for the fuller
+note on why raw_value isn't actually needed for explanation quality --
+every rule's `message` field was written to already contain whatever
+isolated, safe-to-send detail (a single character, a length, a line
+count) the explainer needs, without the full sensitive value attached.
+raw_value remains available locally (CLI report, JSON output, eval
+harness) -- this restriction applies ONLY to what crosses the network
+boundary to Anthropic's API.
 """
 
 import os
@@ -33,6 +48,9 @@ def explain_violation(violation: Violation, model: str = "claude-sonnet-4-6") ->
     isn't set, rather than letting the underlying SDK's less specific
     auth error surface directly -- this is the first thing someone
     running this for the first time will hit.
+
+    Deliberately does NOT pass violation.raw_value to the API -- see
+    module docstring's DATA HANDLING note.
     """
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise RuntimeError(
@@ -49,7 +67,6 @@ def explain_violation(violation: Violation, model: str = "claude-sonnet-4-6") ->
         field_path=violation.field_path,
         severity=violation.severity,
         message=violation.message,
-        raw_value=violation.raw_value or "(none)",
         source_ref=violation.source_ref or "(none)",
     )
 

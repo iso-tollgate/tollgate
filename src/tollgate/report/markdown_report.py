@@ -5,6 +5,17 @@ more urgent than a heuristic signal. Each finding shows the
 deterministic message and the AI explanation (if any) as visually
 distinct blocks, so a reader can tell fact from narration at a
 glance -- per the project's deterministic-check/AI-narration split.
+
+DATA HANDLING NOTE (2026-06-20): this report includes
+Violation.raw_value when present (e.g. the actual name or address
+fragment that triggered a charset or truncation finding). This is
+intentional and fine -- this report stays entirely local, written to
+the user's own filesystem for the user who ran the check on their own
+data. The restriction that matters is specifically about NOT sending
+raw_value across the network to a third-party API -- see
+explain/explainer.py and explain/prompts.py for that boundary. Don't
+confuse the two: a local report showing a user their own data back is
+not the same risk as an API call sending that data elsewhere.
 """
 
 from datetime import datetime, timezone

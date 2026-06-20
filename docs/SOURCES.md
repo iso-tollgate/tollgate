@@ -241,3 +241,44 @@ fixtures the test suite generates:
   validation/xsd_validator.py and cli.py for what broke and how it was
   fixed. Listed here too so the pattern (clean fixtures passing tests
   doesn't mean messy real input is handled) is visible at a glance.
+
+## data-handling-ai-boundary
+
+Found and fixed during a review pass (2026-06-20): an earlier version
+of explain/explainer.py sent Violation.raw_value to the Anthropic API
+verbatim as part of building an explanation. For charset_violation and
+truncation_suspected specifically, raw_value can contain the full
+content of a sensitive field -- a real person's or company's name, an
+address fragment, taken directly from a real payment message the user
+is checking with Tollgate. Sending that to a third-party API without
+explicit, informed user consent is not acceptable for a tool whose
+entire premise is processing real bank payment data.
+
+**The fix:** raw_value is never included in the prompt sent to the
+API. Checked first whether it was actually needed for explanation
+quality -- it wasn't. Every rule's `message` field was already written
+to contain only the safe-to-send, isolated detail the explainer
+needs (the specific offending character, the exact length and
+boundary, the line count, the absent field name) without the full
+sensitive value attached. See explain/prompts.py and
+explain/explainer.py for the in-code documentation of this boundary,
+and tests/test_data_handling.py for tests that mock the API client and
+directly verify a real sensitive value never appears in the actual
+payload sent.
+
+**What this restriction does NOT cover:** raw_value is still included
+in local outputs -- the CLI's markdown report (--output) and JSON
+output (--json) both show it when present, since a user's own local
+report displaying their own data back to them is not the same risk as
+an API call sending that data to a third party. Only the network
+boundary to Anthropic's API is restricted.
+
+**Scope of this finding:** only charset_rule.py and truncation_rule.py
+ever set raw_value at all; address_rule.py, mandatory_gap_rule.py, and
+xsd_validator.py never populate it, so they were never exposed to this
+issue in the first place.
+
+**What --explain itself does send:** rule_id, field_path, severity,
+the deterministic message (already vetted as safe per above), and
+source_ref. None of these should constitute PII on their own --
+field_path is a structural XML path (e.g. "Dbtr/Nm"), not a value.
