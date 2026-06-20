@@ -246,15 +246,212 @@ def build_valid_baseline(
     ).decode("utf-8")
 
 
+def _parse(xml_str: str) -> tuple[etree._Element, dict]:
+    """Parses baseline XML and returns (root, nsmap_for_xpath) --
+    nsmap_for_xpath has the default namespace bound to prefix 'p',
+    since lxml's find()/findall() require a prefix (None doesn't work
+    for the default namespace in XPath expressions).
+    """
+    root = etree.fromstring(xml_str.encode("utf-8"))
+    default_ns = root.nsmap.get(None)
+    nsmap = {"p": default_ns} if default_ns else {}
+    return root, nsmap
+
+
+def _serialize(root: etree._Element) -> str:
+    return etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8", pretty_print=True
+    ).decode("utf-8")
+
+
+def _inject_xsd_structural(root: etree._Element, nsmap: dict) -> tuple[etree._Element, GroundTruthLabel]:
+    """Removes the mandatory ChrgBr element entirely. Same corruption
+    used throughout this project's own tests (xsd_validator.py) --
+    reusing a known, unambiguous mandatory-element-missing case rather
+    than inventing a new one.
+    """
+    chrg_br = root.find(".//p:ChrgBr", nsmap)
+    parent = chrg_br.getparent()
+    parent.remove(chrg_br)
+
+    label = GroundTruthLabel(
+        rule_id=RuleId.XSD_STRUCTURAL,
+        field_path="FIToFICstmrCdtTrf/CdtTrfTxInf/ChrgBr",
+        injected_value="(element removed entirely)",
+        expected_violation_type="missing mandatory element (ChrgBr)",
+    )
+    return root, label
+
+
+def _inject_charset_violation(root: etree._Element, nsmap: dict) -> tuple[etree._Element, GroundTruthLabel]:
+    """Replaces the Debtor's name with one containing a character
+    outside SWIFT's character set X. 'ü' chosen because it's the same
+    case proven in charset_rule.py's own tests and the project's
+    README showcase -- consistent, traceable example throughout.
+    """
+    dbtr_nm = root.find(".//p:Dbtr/p:Nm", nsmap)
+    dbtr_nm.text = "Helena Müller"
+
+    label = GroundTruthLabel(
+        rule_id=RuleId.CHARSET_VIOLATION,
+        field_path="FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm",
+        injected_value="Helena Müller",
+        expected_violation_type="character outside SWIFT character set X ('ü')",
+    )
+    return root, label
+
+
+def _inject_address_freeform_only(root: etree._Element, nsmap: dict) -> tuple[etree._Element, GroundTruthLabel]:
+    """Requires the baseline to have been built with
+    include_ultimate_parties=True -- this injector targets UltmtDbtr,
+    a hybrid-end-state role, and replaces its structured address
+    (TwnNm/Ctry) with a free-format-only address (AdrLine), which is
+    not permitted for hybrid-end-state roles per the Fedwire QRG.
+    """
+    ultmt_dbtr_pstl_adr = root.find(".//p:UltmtDbtr/p:PstlAdr", nsmap)
+    if ultmt_dbtr_pstl_adr is None:
+        raise ValueError(
+            "ADDRESS_FREEFORM_ONLY injector requires a baseline built with "
+            "include_ultimate_parties=True -- UltmtDbtr not found."
+        )
+
+    for child_tag in ("TwnNm", "Ctry"):
+        child = ultmt_dbtr_pstl_adr.find(f"p:{child_tag}", nsmap)
+        if child is not None:
+            ultmt_dbtr_pstl_adr.remove(child)
+
+    adr_line = etree.SubElement(ultmt_dbtr_pstl_adr, "AdrLine")
+    adr_line.text = "123 Main Street"
+
+    label = GroundTruthLabel(
+        rule_id=RuleId.ADDRESS_FREEFORM_ONLY,
+        field_path="FIToFICstmrCdtTrf/CdtTrfTxInf/UltmtDbtr/PstlAdr",
+        injected_value="AdrLine present, TwnNm/Ctry removed",
+        expected_violation_type="free-format-only address on a hybrid end-state role (UltmtDbtr)",
+    )
+    return root, label
+
+
+def _inject_address_missing_town_country(root: etree._Element, nsmap: dict) -> tuple[etree._Element, GroundTruthLabel]:
+    """Targets Dbtr, an interim-state role. Removes Ctry while leaving
+    TwnNm, so the address is "structured" but incomplete -- interim-
+    state rules require both TwnNm and Ctry as the minimum for a
+    structured address.
+    """
+    dbtr_pstl_adr = root.find(".//p:Dbtr/p:PstlAdr", nsmap)
+    ctry = dbtr_pstl_adr.find("p:Ctry", nsmap)
+    dbtr_pstl_adr.remove(ctry)
+
+    label = GroundTruthLabel(
+        rule_id=RuleId.ADDRESS_MISSING_TOWN_COUNTRY,
+        field_path="FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/PstlAdr",
+        injected_value="(Ctry element removed)",
+        expected_violation_type="structured address missing Country (Dbtr, interim-state role)",
+    )
+    return root, label
+
+
+def _inject_address_too_many_lines(root: etree._Element, nsmap: dict) -> tuple[etree._Element, GroundTruthLabel]:
+    """Requires include_ultimate_parties=True. Adds extra AdrLine
+    entries to UltmtDbtr's address so the count exceeds the hybrid
+    end-state limit (2), while staying within the schema's own
+    maxOccurs=7 -- this is deliberately the schema-valid-but-
+    guideline-invalid case verified in address_rule.py's own tests.
+    """
+    ultmt_dbtr_pstl_adr = root.find(".//p:UltmtDbtr/p:PstlAdr", nsmap)
+    if ultmt_dbtr_pstl_adr is None:
+        raise ValueError(
+            "ADDRESS_TOO_MANY_LINES injector requires a baseline built with "
+            "include_ultimate_parties=True -- UltmtDbtr not found."
+        )
+
+    line_count = 5  # > 2 (hybrid limit), <= 7 (schema max) -- same value used in address_rule.py tests
+    for i in range(line_count):
+        adr_line = etree.SubElement(ultmt_dbtr_pstl_adr, "AdrLine")
+        adr_line.text = f"Line {i + 1}"
+
+    label = GroundTruthLabel(
+        rule_id=RuleId.ADDRESS_TOO_MANY_LINES,
+        field_path="FIToFICstmrCdtTrf/CdtTrfTxInf/UltmtDbtr/PstlAdr",
+        injected_value=f"{line_count} AdrLine entries added",
+        expected_violation_type=(
+            f"{line_count} free-format address lines on a hybrid end-state "
+            "role (UltmtDbtr), exceeding the 2-line limit while remaining "
+            "within the schema's own maxOccurs=7"
+        ),
+    )
+    return root, label
+
+
+def _inject_truncation_suspected(root: etree._Element, nsmap: dict) -> tuple[etree._Element, GroundTruthLabel]:
+    """Sets Dbtr/Nm to exactly 35 characters -- Nm allows up to 140,
+    so landing exactly on the old MT line-length boundary is the
+    suspicious case verified in truncation_rule.py's own tests.
+    """
+    dbtr_nm = root.find(".//p:Dbtr/p:Nm", nsmap)
+    suspicious_value = "A" * 35
+    dbtr_nm.text = suspicious_value
+
+    label = GroundTruthLabel(
+        rule_id=RuleId.TRUNCATION_SUSPECTED,
+        field_path="FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm",
+        injected_value=suspicious_value,
+        expected_violation_type="name truncated to exactly 35 characters (legacy MT line-length boundary), in a field that allows up to 140",
+    )
+    return root, label
+
+
+def _inject_mandatory_field_gap(root: etree._Element, nsmap: dict) -> tuple[etree._Element, GroundTruthLabel]:
+    """Removes UETR from PmtId. Schema permits this (minOccurs=0);
+    Fedwire's own FAQ states it's mandatory in practice -- the same
+    case verified in mandatory_gap_rule.py's own tests.
+    """
+    uetr = root.find(".//p:PmtId/p:UETR", nsmap)
+    parent = uetr.getparent()
+    parent.remove(uetr)
+
+    label = GroundTruthLabel(
+        rule_id=RuleId.MANDATORY_FIELD_GAP,
+        field_path="FIToFICstmrCdtTrf/CdtTrfTxInf/PmtId/UETR",
+        injected_value="(element removed entirely)",
+        expected_violation_type="UETR missing -- schema-optional but Fedwire-mandatory",
+    )
+    return root, label
+
+
+_INJECTORS = {
+    RuleId.XSD_STRUCTURAL: _inject_xsd_structural,
+    RuleId.CHARSET_VIOLATION: _inject_charset_violation,
+    RuleId.ADDRESS_FREEFORM_ONLY: _inject_address_freeform_only,
+    RuleId.ADDRESS_MISSING_TOWN_COUNTRY: _inject_address_missing_town_country,
+    RuleId.ADDRESS_TOO_MANY_LINES: _inject_address_too_many_lines,
+    RuleId.TRUNCATION_SUSPECTED: _inject_truncation_suspected,
+    RuleId.MANDATORY_FIELD_GAP: _inject_mandatory_field_gap,
+}
+
+
 def inject_error(baseline_xml: str, rule_id: RuleId) -> tuple[str, GroundTruthLabel]:
     """Takes valid baseline XML, returns (corrupted_xml, ground_truth_label).
 
-    NOT YET IMPLEMENTED for most rule_ids -- only the ones below have
-    a working injector so far. Each corresponds to an actual documented
-    gotcha; see docs/SOURCES.md before adding a new one.
+    Operates by parsing the baseline into an lxml tree and surgically
+    modifying the target element via XPath, rather than string
+    replacement -- string matching against generated content (random
+    names, random amounts) is fragile across different seeds; tree
+    manipulation finds the target by structural path regardless of
+    what random data happens to be there.
+
+    ADDRESS_FREEFORM_ONLY and ADDRESS_TOO_MANY_LINES require the
+    baseline to have been built with include_ultimate_parties=True
+    (they target UltmtDbtr) -- raises ValueError with a clear message
+    if that role isn't present, rather than silently doing nothing.
     """
-    raise NotImplementedError(
-        f"No injector implemented yet for {rule_id}. "
-        "See module docstring; add injectors one rule_id at a time."
-    )
+    if rule_id not in _INJECTORS:
+        raise NotImplementedError(
+            f"No injector implemented for {rule_id}. "
+            "Add a case to _INJECTORS, sourced from docs/SOURCES.md."
+        )
+
+    root, nsmap = _parse(baseline_xml)
+    modified_root, label = _INJECTORS[rule_id](root, nsmap)
+    return _serialize(modified_root), label
 
