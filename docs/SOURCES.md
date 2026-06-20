@@ -106,18 +106,34 @@ no source field to map from when generating these MX elements.
 
 ## xsd-source
 
-**ISO 20022 Message Definitions catalogue**
+**ISO 20022 Message Definitions catalogue** (current versions):
 https://www.iso20022.org/iso-20022-message-definitions
+As of this research, the catalogue's current published version is
+pacs.008.001.14 (direct XSD link:
+https://www.iso20022.org/message/23500/download). Fedwire, CBPR+, and
+major bank guidance (Citi, JPMorgan, BNY) reference pacs.008.001.08
+instead — confirm which version your target network has actually
+pinned to before assuming "newest" is correct.
 
-This is the authoritative source for the pacs.008 XSD itself. As of
-this research, the catalogue's newest published version is
-pacs.008.001.14, but Fedwire, CBPR+, and major bank guidance (Citi,
-JPMorgan, BNY) reference pacs.008.001.08 — confirm which version your
-target network has actually pinned to before assuming "newest" is
-correct. Pull the XSD directly from this archive, not from a
+**ISO 20022 Messages Archive** (superseded versions):
+https://www.iso20022.org/catalogue-messages/iso-20022-messages-archive
+pacs.008.001.08 (FIToFICustomerCreditTransferV08) lives here, not in
+the current catalogue — it was superseded and archived. Found under
+the "Payments Clearing and Settlement V09" message set, archived
+01 February 2019.
+  - Direct XSD download (confirmed working, verified by fetch on
+    2026-06-20): https://www.iso20022.org/message/14231/download
+  - This is a zip; unzip and verify the exact filename(s) inside —
+    ISO 20022 message sets sometimes bundle shared dependency XSDs
+    alongside the message-specific one.
+
+Pull the XSD directly from one of the two URLs above, not from a
 third-party GitHub mirror, even though such mirrors exist (e.g.
 sladjan/xsd-camt, yudhik/example-iso-20022) — they're convenience
-copies with no guarantee of staying unmodified or available.
+copies with no guarantee of staying unmodified or available. Note in
+the vendored file (a header comment is fine) which URL it came from
+and the date it was pulled, since archived-message-set contents could
+theoretically be revised.
 
 ## migration-timeline-general
 

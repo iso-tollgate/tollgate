@@ -1,13 +1,18 @@
 """Deterministic XSD structural validation.
 
 TARGET SCHEMA: pacs.008.001.08 (FIToFICustomerCreditTransferV08)
-Source the actual XSD from iso20022.org's message archive directly —
-do not depend on a third-party GitHub mirror staying available or
-unmodified. See docs/SOURCES.md#xsd-source for the exact archive URL
-once pulled, and note the version decision rationale there (Fedwire
-and CBPR+ guidance both reference .08 as of this research, even though
-the iso20022.org catalogue's newest published version is .14 — pin to
-.08 unless you've confirmed your target network has moved on).
+Confirmed download (verified working 2026-06-20):
+  https://www.iso20022.org/message/14231/download
+This version was superseded in the live catalogue (current is .14)
+and now lives in the ISO 20022 Messages Archive, under "Payments
+Clearing and Settlement V09" (archived 01 Feb 2019). Fedwire and
+CBPR+ guidance both reference .08 as of this research even though
+it's no longer the catalogue's newest — pin to .08 unless you've
+confirmed your target network has moved on. See docs/SOURCES.md#xsd-
+source for both the current-catalogue and archive URLs.
+
+Do not depend on a third-party GitHub mirror staying available or
+unmodified — pull from the URL above directly.
 
 NOT YET IMPLEMENTED. Planned approach:
   - Use `xmlschema` (preferred over raw lxml XSD validation for

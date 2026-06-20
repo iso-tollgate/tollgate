@@ -1,82 +1,24 @@
-# --- Python ---
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-
-# --- Virtual environments ---
+.eggs/
+build/
+dist/
 .venv/
 venv/
-env/
-ENV/
 
-# --- Testing / coverage ---
 .pytest_cache/
 .coverage
-.coverage.*
 htmlcov/
-.tox/
-.nox/
-coverage.xml
-*.cover
 
-# --- Type checkers / linters ---
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.ruff_cache/
-
-# --- Eval results (generated, not source) ---
-tests/evals/eval_results/*.json
-!tests/evals/eval_results/.gitkeep
-
-# --- Generated test fixtures (keep the dir, not generated content) ---
-tests/fixtures/*.xml
-!tests/fixtures/.gitkeep
-
-# --- Secrets / env ---
 .env
-.env.*
-!.env.example
-*.pem
-*.key
+*.env.local
 
-# --- Editors / IDEs ---
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
 
-# --- OS cruft ---
+tests/evals/eval_results/*.json
+!tests/evals/eval_results/.gitkeep
+
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-Thumbs.db
-ehthumbs.db
-
-# --- Jupyter, in case notebooks creep in for exploration ---
-.ipynb_checkpoints/
-*.ipynb_checkpoints
-
-# --- Packaging ---
-*.tar.gz
-*.whl
