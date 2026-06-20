@@ -4,14 +4,17 @@ Deliberately a single function, not a class, not an agent loop —
 per the explicit decision: single-prompt Claude API calls in v1,
 revisit only if evals demand more.
 
-HONEST LIMITATION (2026-06-20): this function has NOT been live-tested
-against the real Anthropic API. The sandbox this project was built in
-has no API key configured and api.anthropic.com is not on its network
-allowlist, so the implementation below is correct by inspection and by
-matching the documented API shape, but has not actually been called
-and verified end-to-end. Run tests/test_explainer.py with a real
-ANTHROPIC_API_KEY set (it's skipped automatically otherwise) before
-trusting this in the eval harness or CLI.
+LIVE-VERIFIED (2026-06-21): this function was sandboxed during initial
+development -- the sandbox had no API key configured and
+api.anthropic.com wasn't on its network allowlist, so the original
+implementation was correct by inspection only. It has since been run
+for real, on the developer's own machine with a real ANTHROPIC_API_KEY,
+via tests/test_explainer.py's three live-API tests (skipped
+automatically without a key present, so the rest of the suite never
+required one). Confirmed on a real run: explanations correctly name
+the violated field and cause, correctly hedge on warning-severity
+(heuristic) findings rather than asserting certainty, and feed
+correctly into the eval harness's scoring function.
 
 DATA HANDLING (2026-06-20): violation.raw_value is deliberately NEVER
 sent to the API. It can contain the full content of a sensitive

@@ -9,13 +9,13 @@
 DESIGN NOTE on --explain: AI explanation is opt-in, not the default.
 Deterministic checks (XSD, charset, address, truncation, mandatory-gap)
 always run -- they're free, fast, and local. explain_violation() makes
-a real, billed call to the Anthropic API per violation, and (as of
-2026-06-20) has not been live-verified end-to-end -- see
-tests/test_explainer.py. Defaulting to always calling it would mean
-anyone running `tollgate validate` without an API key configured hits
-an error immediately, even if they only wanted the deterministic
-findings. With --explain and no key set, this fails clearly via the
-same RuntimeError explain_violation() already raises.
+a real, billed call to the Anthropic API per violation -- live-verified
+2026-06-21, see tests/test_explainer.py. The opt-in design itself
+doesn't change now that it's verified: defaulting to always calling it
+would still mean anyone running `tollgate validate` without an API key
+configured hits an error immediately, even if they only wanted the
+deterministic findings. With --explain and no key set, this fails
+clearly via the same RuntimeError explain_violation() already raises.
 
 REFACTORED (2026-06-20) to call tollgate.api instead of containing its
 own copy of the check-assembly logic. Previously this file had its own

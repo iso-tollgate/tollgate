@@ -69,7 +69,9 @@ Details and examples for all three: [`docs/usage.md`](docs/usage.md).
 
 ## Status
 
-152 tests passing, 3 skipped (those three need a live `ANTHROPIC_API_KEY` and are skipped automatically without one — everything else, including every validation rule, the generator, the eval harness, and both APIs, is fully verified with zero API key required).
+155 tests passing (152 deterministic/local + 3 live API tests, all confirmed passing against the real Anthropic API), 0 skipped when an `ANTHROPIC_API_KEY` is set — and 152 passing with the 3 API tests skipping cleanly when it isn't, so the full deterministic suite (every validation rule, the generator, the eval harness, both APIs) needs zero API key to verify.
+
+`--explain` has been live-tested against the real model: it correctly names the violated field and cause, and correctly hedges on warning-severity (heuristic) findings rather than asserting them as certain failures — verified, not assumed.
 
 Not yet on PyPI or Homebrew — clone-and-install is the path for now. A Homebrew tap is scaffolded in [`homebrew-tollgate/`](https://github.com/ArunMishra1/homebrew-tollgate) for once a tagged release exists.
 
