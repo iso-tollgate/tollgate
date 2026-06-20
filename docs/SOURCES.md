@@ -58,7 +58,32 @@ over whether `{` and `}` are included — the request was to disallow
 them, so treat the narrower set without curly braces as the safer
 default: `a-z A-Z 0-9 / - ? : ( ) . , ' +` plus CR/LF).
 
+**CORRECTION found during implementation (2026-06-20):** the
+definition above, copied directly from research notes, omits the
+plain space character. SWIFT's own character set X definition
+(see Paiementor and SWIFT Standards MT sources below) lists Space
+explicitly as a separate allowed character alongside the letters,
+digits, and punctuation. Without it, the regex implementation falsely
+flagged completely ordinary text like "Tomas Becker" as a violation —
+caught only because charset_rule.py was tested against real generator
+output before being trusted. The corrected, implemented pattern is:
+`a-z A-Z 0-9 / - ? : ( ) . , ' + SPACE` plus CR/LF. See
+tests/test_charset_rule.py::test_no_false_positive_on_plain_text,
+which exists specifically to guard against this regressing.
+
 URL: https://www.ecb.europa.eu/paym/target/t2s/governance/pdf/crg/ecb.targetseccrg161122_T2S-0645-SYS.en.pdf
+
+**Paiementor — SWIFT formatting rules and character sets of MT messages**
+Lists the SWIFT 'x' character set explicitly including Space as a
+distinct allowed character, separate from the letter/digit/punctuation
+list: "a b c ... 0123456789 / – ? : ( ) . , ' + CrLf Space".
+URL: https://www.paiementor.com/swift-formatting-rules-and-character-sets-of-mt-messages/
+
+**SWIFT Standards MT, November 2021 — General Information**
+SWIFT's own standards documentation, independently confirming the same
+letter/digit set for the 'x' character set used in field format
+indicators.
+URL: https://www2.swift.com/knowledgecentre/rest/v1/publications/usgi_20210723/2.0/usgi_20210723.pdf
 
 **XMLdation knowledge base — ISO 20022 character set**
 Independently confirms: ISO 20022 XML messages officially use UTF-8
