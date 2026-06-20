@@ -47,6 +47,7 @@ from pathlib import Path
 from typing import Callable
 
 from tollgate.generator.synthetic_fixtures import (
+    REQUIRES_ULTIMATE_PARTIES_RULE_IDS as REQUIRES_ULTIMATE_PARTIES,
     GroundTruthLabel,
     build_valid_baseline,
     inject_error,
@@ -59,10 +60,6 @@ from tollgate.validation.truncation_rule import check_truncation_signals
 from tollgate.validation.xsd_validator import validate_xsd
 
 EVAL_RESULTS_DIR = Path(__file__).parent / "eval_results"
-
-# RuleId values that target UltmtDbtr and need include_ultimate_parties=True
-# in the baseline -- same constraint as inject_error() itself.
-REQUIRES_ULTIMATE_PARTIES = {RuleId.ADDRESS_FREEFORM_ONLY, RuleId.ADDRESS_TOO_MANY_LINES}
 
 # Synonym terms a human-written explanation would plausibly use for
 # each field tag, since no one writes the raw XML path in prose.

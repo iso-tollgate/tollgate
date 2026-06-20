@@ -14,7 +14,11 @@ from pathlib import Path
 
 import pytest
 
-from tollgate.generator.synthetic_fixtures import build_valid_baseline, inject_error
+from tollgate.generator.synthetic_fixtures import (
+    REQUIRES_ULTIMATE_PARTIES_RULE_IDS as REQUIRES_ULTIMATE_PARTIES,
+    build_valid_baseline,
+    inject_error,
+)
 from tollgate.validation.address_rule import check_address_structure
 from tollgate.validation.charset_rule import check_charset
 from tollgate.validation.mandatory_gap_rule import check_mandatory_gaps
@@ -31,8 +35,10 @@ SCHEMA_PATH = (
 )
 
 # Rule IDs that target UltmtDbtr and therefore require the baseline to
-# be built with include_ultimate_parties=True.
-REQUIRES_ULTIMATE_PARTIES = {RuleId.ADDRESS_FREEFORM_ONLY, RuleId.ADDRESS_TOO_MANY_LINES}
+# be built with include_ultimate_parties=True. (Imported above as
+# REQUIRES_ULTIMATE_PARTIES from the real module -- this comment is
+# kept here as a pointer since the name is referenced throughout this
+# file.)
 
 ALL_RULE_IDS = [
     RuleId.XSD_STRUCTURAL,

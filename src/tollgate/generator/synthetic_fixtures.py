@@ -71,6 +71,16 @@ class GroundTruthLabel:
     expected_violation_type: str
 
 
+# Rule IDs whose injector targets UltmtDbtr, which only exists in a
+# baseline built with include_ultimate_parties=True. Promoted here
+# (2026-06-20) from what had been a duplicated test-local constant in
+# tests/test_inject_error.py and tests/evals/eval_harness.py -- now
+# that the CLI's `generate` command also needs this mapping, it gets
+# one real source of truth instead of three independently-maintained
+# copies that could silently drift out of sync.
+REQUIRES_ULTIMATE_PARTIES_RULE_IDS = {RuleId.ADDRESS_FREEFORM_ONLY, RuleId.ADDRESS_TOO_MANY_LINES}
+
+
 def _el(parent: etree._Element, tag: str, text: str | None = None) -> etree._Element:
     """Shorthand for creating a sub-element, optionally with text content."""
     child = etree.SubElement(parent, tag)
