@@ -108,16 +108,30 @@ def validate_xsd(xml_input: str | Path, schema_path: str | Path) -> list[Violati
         # Catches well-formedness failures (not valid XML at all) and
         # any other parse-level exception xmlschema/lxml might raise
         # before schema-conformance checking even begins. Reported as
-        # a single Violation with the broad-but-honest message below,
-        # rather than letting a stack trace reach the CLI.
+        # a single Violation rather than letting a stack trace reach
+        # the CLI.
+        #
+        # BUG FOUND AND FIXED (2026-06-20), while testing the exact
+        # README quickstart example a new user would run: a plain
+        # string with no '<' character (e.g. "not even xml") makes
+        # xmlschema's resource loader treat it as a potential file
+        # PATH rather than literal content, raising
+        # XMLResourceOSError with a confusing "can't access to
+        # resource...No such file or directory" message that even
+        # echoed back a local filesystem path. The underlying
+        # exception type/text is no longer surfaced to the user --
+        # we already know definitively this branch means "not parseable
+        # as XML," so a clean, fixed message is both more honest about
+        # what we actually know and avoids leaking confusing internal
+        # detail (or, in this case, local path fragments) into a
+        # validation message.
         violations.append(
             Violation(
                 rule_id=RuleId.XSD_STRUCTURAL,
                 field_path="(document root)",
                 message=(
-                    f"This file could not be parsed as XML at all "
-                    f"({type(e).__name__}: {e}). It may not be XML, may be "
-                    f"empty, or may be corrupted/truncated."
+                    "This could not be parsed as XML at all. It may not be "
+                    "XML, may be empty, or may be corrupted/truncated."
                 ),
                 severity="error",
                 source_ref="iso20022-xsd-pacs008-001-08",

@@ -40,6 +40,25 @@ def test_completely_non_xml_input_does_not_crash():
     assert "could not be parsed as xml" in violations[0].message.lower()
 
 
+def test_plain_string_without_angle_bracket_does_not_leak_internal_paths():
+    """BUG FOUND testing the README quickstart example directly: a
+    plain string with no '<' character (e.g. "not even xml") made
+    xmlschema's resource loader treat it as a potential file PATH,
+    raising an exception whose text echoed back a local filesystem
+    path ("can't access to resource 'file:///home/...'"). The fix
+    stopped surfacing the raw exception text at all -- this test
+    guards specifically against a local path fragment leaking into
+    the user-facing message again.
+    """
+    violations = validate_xsd("not even xml", SCHEMA_PATH)
+    assert len(violations) == 1
+    message_lower = violations[0].message.lower()
+    assert "file://" not in message_lower
+    assert "/home/" not in message_lower
+    assert "errno" not in message_lower
+    assert "no such file or directory" not in message_lower
+
+
 def test_empty_string_input_does_not_resolve_to_cwd():
     """BUG 2: an empty string, once encoded to b"", was apparently
     treated by xmlschema as 'no source provided' rather than 'empty

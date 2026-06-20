@@ -1,131 +1,183 @@
 # tollgate
 
-> **Note to self before publishing:** this draft is mine to rewrite in
-> my own voice before it goes live. It's structurally what I want —
-> real anchor scenario first, then the gap, then what the tool does,
-> then honest limits — but the sentences are Claude's, not mine. Read
-> it once, then rewrite every paragraph the way I'd actually say it
-> out loud to another architect over coffee. Don't ship this draft.
+A pre-submission safety gate for ISO 20022 payment messages. It catches the gap between "this passed schema validation" and "this will actually get accepted by the network" — before you find out the hard way.
 
-## The five-minute version
+## The problem, in one sentence
 
-If you've ever had a wire transfer get rejected for a reason that
-made no sense given that it "passed validation," you already know the
-problem this solves.
+A pacs.008 payment message can be 100% valid XML, pass every XSD check you run against it, and still get rejected the moment it hits a real clearing network — because some of the rules that matter live outside the schema entirely.
 
-Picture a payment integration team that just finished converting their
-outbound payment file generator from the old MT103 format to pacs.008.
-Everything passes the XSD. Every test in their CI suite is green. Then
-it hits a real clearing network and gets bounced — not because the XML
-is malformed, but because of something the schema was never built to
-catch: a German customer's name with a "ü" in it, sitting in a field
-that's perfectly valid XML and perfectly invalid on the wire, because
-SWIFT's network layer restricts the character set independently of
-what the XSD permits. Nobody on that team is wrong to be confused.
-The schema said yes. The network said no. There's no single tool
-that tells you about that gap before you submit.
+Concretely: the ISO 20022 XML schema allows full Unicode in a name field. SWIFT's network layer restricts the allowed characters to Basic Latin, independently of what the schema permits. A name like "Helena Müller" passes XSD validation cleanly and fails on the wire. No XSD validator will ever catch that, because it isn't a schema problem. Tollgate exists because nothing else checks for this class of gap.
 
-Tollgate is that tool, for one message type, with a short and honest
-list of gaps it covers.
+```
+$ tollgate validate broken_payment.xml
+1 error(s), 0 warning(s) found in broken_payment.xml:
 
-## Why now, specifically
+ERROR charset_violation -- FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm
+  Contains character(s) outside SWIFT's character set X: 'ü'. This is
+  schema-valid XML (ISO 20022 permits full Unicode) but SWIFT's network
+  layer restricts allowed characters independently of the schema --
+  this will not be caught by XSD validation alone.
+```
 
-ISO 20022 has been arriving in US payments in waves for a couple of
-years — CHIPS in 2024, Fedwire in 2025. Most of that wave has already
-landed. What's still ahead, and dated, is narrower: by November 2026,
-several networks — Fedwire, CHIPS, SWIFT cross-border, and others —
-stop accepting unstructured free-text addresses for certain parties on
-a payment message. A structured Town and Country becomes mandatory,
-not optional. If your system has been quietly getting away with
-free-text-only addresses because the old message format never
-enforced otherwise, that stops working on a fixed date.
+That's a real, reproducible example — not a hypothetical. Every claim in this README has a working command behind it; see [Try it yourself](#try-it-yourself) below.
 
-That's the kind of failure tollgate is built to catch before it
-reaches a clearing network: not "is this XML well-formed," but "will
-this specific, dated rule reject this message even though the schema
-says it's fine."
+## Why now
 
-## What it actually checks (v1)
+ISO 20022 has been landing in US payments in waves. CHIPS migrated in 2024. Fedwire's core migration was 2025. Most of that wave has already happened — if you're reading this expecting "ISO 20022 migration is coming," it mostly isn't; it mostly already came.
 
-One message type only: pacs.008.001.08, the FI-to-FI customer credit
-transfer message used across Fedwire, CHIPS, and SWIFT CBPR+.
+What's still ahead, with a real date attached: by **November 2026**, several networks — Fedwire, CHIPS, SWIFT cross-border payments, and others — stop accepting unstructured free-text addresses for certain parties on a payment message. A structured Town and Country becomes mandatory, not optional, for specific roles on the message. If a system has been quietly getting away with free-text-only addresses because the old message format never enforced otherwise, that stops working on a fixed date.
 
-1. **Schema structure.** Standard XSD validation. This part isn't
-   novel — it's the floor everything else stands on.
-2. **SWIFT's character set restriction.** ISO 20022 XML allows full
-   Unicode. SWIFT's network layer doesn't. A message can be 100%
-   schema-valid and still get rejected for using a character outside
-   SWIFT's allowed set. Tollgate flags this before you find out the
-   hard way.
-3. **Address structure, hybrid end-state rules.** The specific
-   structured-vs-free-text address requirements that change by
-   November 2026, broken out by which party role they apply to
-   (because the rules genuinely differ by role — Ultimate Debtor
-   follows a stricter rule than plain Debtor, and that distinction is
-   easy to miss).
-4. **Truncation signals from legacy conversion.** If a field value
-   lands at exactly 35 or 70 characters — the old MT line-length
-   limits — that's a real signal something got cut off during
-   conversion, even though it's still well within the new field's
-   allowed length. The schema can't see this. A length check alone
-   can't see this either. You need to know what the old boundary was.
-5. **Mandatory fields with no legacy equivalent.** A few pacs.008
-   fields are required now but had nothing analogous in the old FAIM
-   format — meaning a straight auto-conversion has no source data to
-   put there at all. That's a different problem than "field is
-   missing," and it deserves a different explanation.
+That's the kind of failure Tollgate is built to catch ahead of time: not "is this XML well-formed," but "will this specific, dated rule reject this message even though the schema says it's fine."
 
-Every one of these is sourced. See `docs/SOURCES.md` — if a rule is
-in this tool, there's a citation behind it. If I can't trace a rule to
-a real document, it doesn't go in.
+## What it checks (v1 scope: pacs.008.001.08 only)
+
+Five checks run on every message. Four of them exist specifically because they catch something XSD validation cannot:
+
+| # | Check | Catches |
+|---|---|---|
+| 1 | **Schema validity** | Standard XSD structural validation against the official pacs.008.001.08 schema. The floor everything else stands on. |
+| 2 | **SWIFT character set** | A message with a character outside SWIFT's allowed set (e.g. accented letters) — schema-valid, network-invalid. |
+| 3 | **Address structure** | Free-format address lines used where a structured Town/Country is required, or address line counts that exceed network guidelines even though the schema allows more. |
+| 4 | **Truncation signals** | A field value landing at exactly 35 or 70 characters — old legacy MT line-length limits — in a field whose modern limit is much higher. A heuristic, reported as a warning, not a certainty. |
+| 5 | **Network-mandatory gaps** | Fields the schema marks optional but a real network requires in practice (e.g. UETR, which Fedwire's own documentation states is mandatory even though the XSD's `minOccurs="0"` permits its absence). |
+
+Every rule traces to a primary or clearly-identified source — see [`docs/SOURCES.md`](docs/SOURCES.md). If a rule is in this tool, there's a citation behind it; where the evidence was thinner, the docs say so explicitly instead of asserting confidence that isn't there.
 
 ## What it explicitly does not do
 
-- It is not a SWIFT-certified compliance tool. It will not replace
-  MyStandards testing, and I'm not pretending it will.
-- It covers exactly one message type in v1: pacs.008.001.08. Not
-  pacs.009, not camt.05x, not the rest of the standard. One thing,
-  done honestly, before expanding.
-- It checks structure and format. It does not validate business logic
-  like BIC routing reachability or account existence.
-- The character-set restriction is documented for the FIN/MX
-  coexistence era. Some networks have discussed loosening this for
-  specific cases (accented characters in domestic contexts, for
-  example). Confirm current behavior for your specific network before
-  treating this as a universal, permanent rule.
+- Not a SWIFT-certified compliance tool. Does not replace MyStandards testing.
+- Covers exactly one message type in v1: pacs.008.001.08. Not pacs.009, not camt.05x, not the rest of the standard.
+- Checks structure and format, not business logic — it won't tell you if a BIC is unreachable or an account doesn't exist.
+- The character-set restriction is documented for the FIN/MX coexistence era specifically. Some networks have discussed loosening this for domestic use cases. Confirm current behavior for your specific target network before treating any rule here as a permanent universal.
+- A known limitation worth knowing about: for messages with multiple transactions in one file, violations in different transactions can report identical-looking field paths (no transaction index). Not a crash, just an ambiguity — documented in `docs/SOURCES.md`.
 
-## How the AI layer works, and why it's built this way
+## The deterministic-check / AI-narration split
 
-When tollgate finds a problem, there are two separate jobs: deciding
-*that* something is wrong, and explaining *why* it matters and what to
-do about it. Those are different jobs and they're handled by different
-parts of the system on purpose.
+Tollgate's checks are deterministic code — XSD validation, regex, length comparisons against known boundaries. No AI decides whether something is wrong. If Tollgate reports a violation, that's a fact a computer checked, not a guess a model made.
 
-The deciding part is deterministic code — XSD validation, regex
-checks, length comparisons against known boundaries. No AI involved.
-If tollgate tells you a field violates a rule, that's a fact a
-computer checked, not a guess a model made.
+AI only enters at the explanation layer, and only when you ask for it with `--explain`. Given an already-detected violation, Claude writes the plain-English explanation: what's wrong, why it matters, what likely caused it if there's a real signal for that. It never decides whether something is a violation — it's a translator, not a judge. This is a single API call per violation, not an agent with tools — kept deliberately simple so it's easy to audit and easy to evaluate.
 
-The explaining part is where Claude comes in, and only there. Given
-an already-identified violation, it writes the plain-English
-explanation — what's wrong, why it matters, what probably caused it
-if there's a real signal for that. It does not get to decide whether
-something is a violation in the first place. It's a translator, not a
-judge.
+`--explain` is opt-in, not the default, because the deterministic checks are free, fast, and fully local, while explanation makes a real, billed call to the Anthropic API.
 
-This split exists because I'd rather a user trust every word of an
-explanation and occasionally find the tool conservative, than have a
-slick explanation sitting on top of a guess. In a space adjacent to
-real money movement, that tradeoff isn't close.
+## Data handling
+
+Tollgate processes real bank payment data. That data does not casually leave your machine.
+
+- The five deterministic checks run entirely locally. Nothing is sent anywhere unless you explicitly pass `--explain`.
+- When `--explain` is used, only the rule name, the field path (a structural reference like `Dbtr/Nm`, not a value), the deterministic finding text, and a source citation are sent to the Anthropic API.
+- The actual offending value (a real name, a real address fragment) is **never sent to the API**, even with `--explain` on. It appears only in local output — your own console report, your own JSON output, your own markdown report — never in the API payload. This is enforced in code and verified by a test that mocks the API client and inspects the literal payload sent (`tests/test_data_handling.py`).
+- See `docs/SOURCES.md`'s `data-handling-ai-boundary` section for the full reasoning.
+
+## Install
+
+```bash
+git clone https://github.com/ArunMishra1/tollgate.git
+cd tollgate
+pip install -e .
+```
+
+For running the test suite yourself:
+
+```bash
+pip install -e ".[dev]"
+```
+
+Requires Python 3.11+.
+
+Not yet published to PyPI — clone-and-install is the only path for now.
+
+## Try it yourself
+
+### CLI: check a single file
+
+```bash
+tollgate validate payment.xml
+```
+
+A clean message:
+```
+✓ payment.xml -- no issues found across all five checks.
+```
+
+A message with a problem:
+```
+1 error(s), 0 warning(s) found in payment.xml:
+
+ERROR charset_violation -- FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm
+  Contains character(s) outside SWIFT's character set X: 'ü'. ...
+```
+
+Exit code is `0` if clean, `1` if any error-severity violation was found — scriptable in CI as-is.
+
+Useful flags:
+```bash
+tollgate validate payment.xml --output report.md     # write a markdown report instead of printing
+tollgate validate payment.xml --json                  # machine-readable output for scripts/CI
+tollgate validate payment.xml --explain               # add AI explanations (needs ANTHROPIC_API_KEY)
+```
+
+### CLI: check a whole directory at once
+
+```bash
+tollgate validate-dir payments/ --recursive
+```
+
+```
+Checked 4 file(s): 2 clean, 2 with errors
+
+ISSUES payments/broken1.xml -- 1 error(s), 0 warning(s)
+OK payments/clean1.xml
+UNREADABLE payments/garbage.xml -- UnicodeDecodeError: ...
+OK payments/subdir/nested.xml
+```
+
+One unreadable or broken file never stops the rest of the batch from being checked — every file gets its own outcome.
+
+### Python library, no file required
+
+```python
+from tollgate import check_message
+
+result = check_message(xml_string_you_already_have_in_memory)
+
+if result.has_errors:
+    for v in result.violations:
+        print(v.rule_id.value, v.field_path, v.message)
+```
+
+Also available: `check_file(path)` for a file on disk, and `check_directory(path)` for a batch — both return the same kind of result object, with a `.to_dict()` for JSON serialization.
+
+### Don't have a real payment file to test with?
+
+Tollgate ships its own synthetic message generator — it can build a realistic, schema-valid pacs.008 message and deliberately inject any of the seven documented error types, so you can see every check in action without needing real bank data:
+
+```bash
+tollgate generate --count 5 --rule-id charset_violation --output-dir /tmp/fixtures
+tollgate validate /tmp/fixtures/charset_violation_0.xml
+```
+
+### GitHub Action — check payment files on every PR
+
+```yaml
+- uses: ArunMishra1/tollgate/.github/actions/validate@main
+  with:
+    path: "payments/**/*.xml"
+```
+
+Fails the build on any error-severity finding, with inline `::error file=...::` annotations on the PR diff. See [`.github/workflows/example-consumer-usage.yml`](.github/workflows/example-consumer-usage.yml) for a complete example workflow.
+
+## How this was built
+
+Built with Claude doing real reasoning work, not as a thin prompt wrapper. The deterministic rules came from actual research against primary sources (the Federal Reserve's own Fedwire documentation, SWIFT's own character-set specifications) — every rule is traceable in `docs/SOURCES.md`. Several real bugs were found and fixed during development by deliberately testing messy, adversarial input rather than trusting that clean test fixtures meant the tool was done — see the inline comments in `validation/xsd_validator.py`, `cli.py`, and `docs/SOURCES.md`'s `known-limitations` section for specifics on what broke and how it got fixed.
 
 ## Status
 
-Early. The module structure and the rule list are real and sourced.
-The actual rule logic isn't written yet — every validation module
-currently raises `NotImplementedError` with a docstring laying out
-exactly what it's going to do and why. I'd rather ship an honest
-skeleton than a tool that quietly does less than it claims.
+152 tests passing, 3 skipped. The 3 skipped tests require a live `ANTHROPIC_API_KEY` to actually call the Anthropic API (`tests/test_explainer.py`) — they're skipped automatically without one, so the rest of the suite (every deterministic rule, the synthetic generator, the eval harness, the CLI, and the library API) is fully verified without needing any API key or billing.
+
+What exists and is tested: all five validation rules, the synthetic fixture generator with labeled error injection for all seven gotcha types, an eval harness that scores AI explanations against known ground truth, the CLI (single-file and directory modes, console/JSON/markdown output), a Python library API, and a GitHub Action for CI use.
+
+What hasn't been live-verified yet: the `--explain` flag's actual output quality against the real Claude API — the code is correct by inspection and unit-tested with a mocked client, but running it for real against live API calls is the next concrete step.
 
 ## License
 
-Apache 2.0.
+Apache 2.0. See [`LICENSE`](LICENSE).
