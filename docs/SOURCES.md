@@ -217,3 +217,27 @@ relevant for README framing:
 migrate" — they already did. 2026's relevant deadline is the address-
 structure enforcement above (address-deadline-2026), which is a
 narrower and more accurate hook.**
+
+## known-limitations
+
+Found during a deliberate review/polish pass (2026-06-20), testing
+deliberately messy real-world-shaped input rather than only the clean
+fixtures the test suite generates:
+
+- **Multi-transaction messages, field path ambiguity.** The schema
+  allows CdtTrfTxInf to repeat (maxOccurs="unbounded") -- a single
+  pacs.008 message can carry multiple transactions. All four
+  non-XSD rules (charset, address, truncation, mandatory-gap) correctly
+  find violations regardless of which transaction they're in, but the
+  reported field_path (e.g. "FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm")
+  does not include a transaction index, so two violations in different
+  transactions can report identical-looking paths. Not a crash, not
+  silently missed -- just ambiguous about which transaction, which
+  matters less for v1's single-message-at-a-time CLI usage but would
+  matter if this is ever extended to batch/multi-transaction reporting.
+- **Several real bugs were found and fixed in this same pass** by
+  deliberately testing non-XML input, empty files, binary files, and
+  directories-passed-as-files -- see the inline comments in
+  validation/xsd_validator.py and cli.py for what broke and how it was
+  fixed. Listed here too so the pattern (clean fixtures passing tests
+  doesn't mean messy real input is handled) is visible at a glance.

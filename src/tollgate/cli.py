@@ -48,13 +48,28 @@ def _run_all_checks(xml_path: Path) -> list[Violation]:
     xml_str = xml_path.read_text(encoding="utf-8")
 
     violations: list[Violation] = []
-    violations.extend(validate_xsd(xml_str, SCHEMA_PATH))
+    xsd_violations = validate_xsd(xml_str, SCHEMA_PATH)
+    violations.extend(xsd_violations)
+
+    document_unparseable = any(
+        v.field_path == "(document root)" for v in xsd_violations
+    )
+    if document_unparseable:
+        # validate_xsd() already reports this case as a clean
+        # Violation (see its own docstring for the bug this fixes) --
+        # the other four rules would hit the identical parse failure
+        # via their own lxml.etree.fromstring calls, so skip them
+        # rather than attempt-and-catch, which only produced redundant
+        # noise (the same failure reported twice, once as a yellow
+        # warning and once as the actual finding).
+        return violations
 
     # The remaining four rules all parse the document themselves via
-    # lxml.etree.fromstring -- if the XML is malformed enough that XSD
-    # validation already failed structurally, these may raise a parse
-    # error rather than return cleanly. Catch that case explicitly so
-    # the CLI degrades to "here's what XSD found" instead of crashing.
+    # lxml.etree.fromstring -- if the XML is well-formed enough to
+    # reach this point but still has some other structural problem
+    # XSD caught, these may still raise in edge cases. Catch that
+    # narrower case explicitly so the CLI degrades to "here's what XSD
+    # found" instead of crashing.
     try:
         violations.extend(check_charset(xml_str))
         violations.extend(check_address_structure(xml_str))
@@ -95,7 +110,22 @@ def validate(
         console.print(f"[red]File not found:[/red] {message_path}")
         raise typer.Exit(code=1)
 
-    violations = _run_all_checks(message_path)
+    if message_path.is_dir():
+        console.print(f"[red]This is a directory, not a file:[/red] {message_path}")
+        raise typer.Exit(code=1)
+
+    try:
+        violations = _run_all_checks(message_path)
+    except UnicodeDecodeError:
+        console.print(
+            f"[red]Could not read {message_path} as UTF-8 text.[/red] "
+            "This usually means the file is binary, not XML -- check that "
+            "you're pointing at the right file."
+        )
+        raise typer.Exit(code=1)
+    except PermissionError:
+        console.print(f"[red]Permission denied reading:[/red] {message_path}")
+        raise typer.Exit(code=1)
 
     explanations: dict[int, str] = {}
     if explain:
