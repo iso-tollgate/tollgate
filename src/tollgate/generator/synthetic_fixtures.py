@@ -147,13 +147,29 @@ def _retag(element: etree._Element, new_tag: str) -> etree._Element:
     return element
 
 
-def build_valid_baseline(seed: int | None = None) -> str:
+def build_valid_baseline(
+    seed: int | None = None,
+    *,
+    include_ultimate_parties: bool = False,
+    ultimate_debtor_address_lines: list[str] | None = None,
+) -> str:
     """Builds one realistic, schema-valid pacs.008.001.08 message as
     a UTF-8 XML string. Single transaction (CdtTrfTxInf), no optional
-    fields beyond what makes the message realistic (UltmtDbtr/UltmtCdtr
-    omitted in the baseline -- inject_error() adds them when a test
-    case specifically needs to exercise the hybrid-end-state address
-    rules on those roles).
+    fields beyond what makes the message realistic by default.
+
+    include_ultimate_parties=True adds UltmtDbtr and UltmtCdtr
+    (PartyIdentification135-shaped, hybrid-end-state address roles)
+    so address_rule.py has fixtures to exercise -- the schema element
+    order is UltmtDbtr, InitgPty, Dbtr, ..., Cdtr, UltmtCdtr (verified
+    against the vendored XSD), so these must be inserted at the
+    correct position, not just appended after Cdtr.
+
+    ultimate_debtor_address_lines lets a caller (typically
+    inject_error or a test) directly control the UltmtDbtr's AdrLine
+    content -- e.g. passing more than 2 lines to exercise the
+    ADDRESS_TOO_MANY_LINES check, or omitting TwnNm/Ctry to exercise
+    ADDRESS_FREEFORM_ONLY. Only meaningful when
+    include_ultimate_parties=True.
     """
     rng = random.Random(seed)
 
@@ -193,6 +209,20 @@ def build_valid_baseline(seed: int | None = None) -> str:
 
     _el(tx, "ChrgBr", "SHAR")
 
+    # Schema sequence order: UltmtDbtr, InitgPty, Dbtr, DbtrAgt, ...,
+    # CdtrAgt, Cdtr, UltmtCdtr -- verified against the vendored XSD.
+    if include_ultimate_parties:
+        ultmt_dbtr = _retag(
+            _build_party(
+                debtor_name,
+                town="Brooklyn",
+                country="US",
+                address_lines=ultimate_debtor_address_lines,
+            ),
+            "UltmtDbtr",
+        )
+        tx.append(ultmt_dbtr)
+
     dbtr = _retag(_build_party(debtor_name, town="Brooklyn", country="US"), "Dbtr")
     tx.append(dbtr)
 
@@ -204,6 +234,12 @@ def build_valid_baseline(seed: int | None = None) -> str:
 
     cdtr = _retag(_build_party(creditor_name, town="Berlin", country="DE"), "Cdtr")
     tx.append(cdtr)
+
+    if include_ultimate_parties:
+        ultmt_cdtr = _retag(
+            _build_party(creditor_name, town="Berlin", country="DE"), "UltmtCdtr"
+        )
+        tx.append(ultmt_cdtr)
 
     return etree.tostring(
         document, xml_declaration=True, encoding="UTF-8", pretty_print=True
