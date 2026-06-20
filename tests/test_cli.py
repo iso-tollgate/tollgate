@@ -148,3 +148,100 @@ def test_validate_json_and_output_together_is_rejected(tmp_path):
     assert not report_path.exists()
     normalized = " ".join(result.stdout.lower().split())
     assert "cannot be used together" in normalized
+
+
+def test_validate_dir_checks_multiple_files(tmp_path):
+    from tollgate.generator.synthetic_fixtures import build_valid_baseline, inject_error
+
+    (tmp_path / "clean.xml").write_text(build_valid_baseline(seed=30), encoding="utf-8")
+    baseline = build_valid_baseline(seed=31)
+    broken, _ = inject_error(baseline, RuleId.CHARSET_VIOLATION)
+    (tmp_path / "broken.xml").write_text(broken, encoding="utf-8")
+
+    result = runner.invoke(app, ["validate-dir", str(tmp_path)])
+
+    assert result.exit_code == 1  # one file has errors
+    normalized = " ".join(result.stdout.lower().split())
+    assert "checked 2 file" in normalized
+
+
+def test_validate_dir_unreadable_file_does_not_abort_others(tmp_path):
+    from tollgate.generator.synthetic_fixtures import build_valid_baseline
+
+    (tmp_path / "clean.xml").write_text(build_valid_baseline(seed=32), encoding="utf-8")
+    (tmp_path / "garbage.xml").write_bytes(b"\x00\x01\xff\xfe")
+
+    result = runner.invoke(app, ["validate-dir", str(tmp_path)])
+
+    assert result.exit_code == 1
+    normalized = " ".join(result.stdout.lower().split())
+    assert "checked 2 file" in normalized
+    assert "unreadable" in normalized
+    assert "ok" in normalized  # the clean file should still show as OK
+
+
+def test_validate_dir_all_clean_exits_zero(tmp_path):
+    from tollgate.generator.synthetic_fixtures import build_valid_baseline
+
+    (tmp_path / "a.xml").write_text(build_valid_baseline(seed=33), encoding="utf-8")
+    (tmp_path / "b.xml").write_text(build_valid_baseline(seed=34), encoding="utf-8")
+
+    result = runner.invoke(app, ["validate-dir", str(tmp_path)])
+    assert result.exit_code == 0
+
+
+def test_validate_dir_recursive_flag(tmp_path):
+    from tollgate.generator.synthetic_fixtures import build_valid_baseline
+
+    (tmp_path / "top.xml").write_text(build_valid_baseline(seed=35), encoding="utf-8")
+    subdir = tmp_path / "sub"
+    subdir.mkdir()
+    (subdir / "nested.xml").write_text(build_valid_baseline(seed=36), encoding="utf-8")
+
+    result_flat = runner.invoke(app, ["validate-dir", str(tmp_path)])
+    normalized_flat = " ".join(result_flat.stdout.lower().split())
+    assert "checked 1 file" in normalized_flat
+
+    result_recursive = runner.invoke(app, ["validate-dir", str(tmp_path), "--recursive"])
+    normalized_recursive = " ".join(result_recursive.stdout.lower().split())
+    assert "checked 2 file" in normalized_recursive
+
+
+def test_validate_dir_json_output(tmp_path):
+    import json
+
+    from tollgate.generator.synthetic_fixtures import build_valid_baseline
+
+    (tmp_path / "a.xml").write_text(build_valid_baseline(seed=37), encoding="utf-8")
+
+    result = runner.invoke(app, ["validate-dir", str(tmp_path), "--json"])
+    assert result.exit_code == 0
+    parsed = json.loads(result.stdout)
+    assert parsed["total_files"] == 1
+    assert parsed["has_any_errors"] is False
+
+
+def test_validate_dir_nonexistent_directory(tmp_path):
+    result = runner.invoke(app, ["validate-dir", str(tmp_path / "does_not_exist")])
+    assert result.exit_code == 1
+    normalized = " ".join(result.stdout.lower().split())
+    assert "not found" in normalized
+
+
+def test_validate_dir_path_is_a_file_not_directory(tmp_path):
+    from tollgate.generator.synthetic_fixtures import build_valid_baseline
+
+    file_path = tmp_path / "payment.xml"
+    file_path.write_text(build_valid_baseline(seed=38), encoding="utf-8")
+
+    result = runner.invoke(app, ["validate-dir", str(file_path)])
+    assert result.exit_code == 1
+    normalized = " ".join(result.stdout.lower().split())
+    assert "not a directory" in normalized
+
+
+def test_validate_dir_empty_directory_no_matches(tmp_path):
+    result = runner.invoke(app, ["validate-dir", str(tmp_path)])
+    assert result.exit_code == 1
+    normalized = " ".join(result.stdout.lower().split())
+    assert "no files matching" in normalized

@@ -3,6 +3,7 @@
     tollgate validate payment.xml --message-type pacs.008 --output report.md
     tollgate validate payment.xml --explain          # adds AI explanations (calls the Anthropic API)
     tollgate validate payment.xml --json             # machine-readable output for CI/scripts
+    tollgate validate-dir payments/ --recursive       # check every .xml file in a folder
     tollgate generate --count 5 --rule-id charset_violation
 
 DESIGN NOTE on --explain: AI explanation is opt-in, not the default.
@@ -23,6 +24,11 @@ need -- now that tollgate.api.check_file()/check_message() exist as
 the real public API, the CLI is a thin presentation layer on top of
 them: one source of truth for "how does the pipeline run," the CLI
 just decides how to print/format the result.
+
+validate-dir is a SEPARATE command from validate, not validate
+detecting "oh, this path is a directory" automatically -- explicit
+command names avoid surprising behavior changes based on what kind of
+path happens to be passed.
 """
 
 import json as json_module
@@ -32,7 +38,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from tollgate.api import CheckResult, check_file
+from tollgate.api import BatchCheckResult, CheckResult, check_directory, check_file
 from tollgate.validation.models import Violation
 
 app = typer.Typer(
@@ -132,6 +138,66 @@ def _print_console_report(result: CheckResult, message_path: Path) -> None:
         if i in result.explanations:
             console.print(f"  [dim]\u2192 {result.explanations[i]}[/dim]")
         console.print()
+
+
+@app.command(name="validate-dir")
+def validate_dir(
+    directory: Path = typer.Argument(..., help="Directory containing ISO 20022 XML files to check."),
+    pattern: str = typer.Option("*.xml", "--pattern", help="Glob pattern for files to check within the directory."),
+    recursive: bool = typer.Option(
+        False, "--recursive", help="Also check files in subdirectories. Off by default to avoid accidentally scanning far more than intended."
+    ),
+    message_type: str = typer.Option("pacs.008", "--message-type", help="Message type to validate against. v1 supports pacs.008 only."),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of a human-readable console summary."),
+) -> None:
+    """Check every matching file in a directory. One bad/unreadable
+    file does not prevent the rest from being checked -- each file's
+    outcome (clean, has violations, or unreadable) is reported
+    independently.
+    """
+    if not directory.exists():
+        console.print(f"[red]Directory not found:[/red] {directory}")
+        raise typer.Exit(code=1)
+
+    if not directory.is_dir():
+        console.print(f"[red]Not a directory:[/red] {directory}")
+        raise typer.Exit(code=1)
+
+    try:
+        batch = check_directory(directory, pattern=pattern, recursive=recursive, message_type=message_type)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
+    if batch.total_files == 0:
+        console.print(f"[yellow]No files matching '{pattern}' found in {directory}.[/yellow]")
+        raise typer.Exit(code=1)
+
+    if as_json:
+        print(json_module.dumps(batch.to_dict(), indent=2))
+    else:
+        _print_batch_console_report(batch)
+
+    if batch.has_any_errors:
+        raise typer.Exit(code=1)
+
+
+def _print_batch_console_report(batch: BatchCheckResult) -> None:
+    console.print(
+        f"Checked [bold]{batch.total_files}[/bold] file(s): "
+        f"[green]{len(batch.clean_files)} clean[/green], "
+        f"[red]{len(batch.files_with_errors)} with errors[/red]\n"
+    )
+
+    for entry in batch.entries:
+        if entry.read_error:
+            console.print(f"[red]UNREADABLE[/red] {entry.file_path} -- {entry.read_error}")
+        elif entry.has_errors:
+            error_count = len([v for v in entry.result.violations if v.severity == "error"])
+            warning_count = len([v for v in entry.result.violations if v.severity == "warning"])
+            console.print(f"[red]ISSUES[/red] {entry.file_path} -- {error_count} error(s), {warning_count} warning(s)")
+        else:
+            console.print(f"[green]OK[/green] {entry.file_path}")
 
 
 @app.command()

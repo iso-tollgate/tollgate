@@ -144,6 +144,125 @@ def check_file(
     return check_message(xml_str, message_type=message_type, explain=explain)
 
 
+@dataclass
+class FileCheckEntry:
+    """One file's result within a batch -- either a successful
+    CheckResult, or an error string if the file couldn't even be read
+    (binary, permission denied, etc.). Having both possible outcomes
+    in one shape, rather than raising on the first unreadable file,
+    matches the proven pattern in
+    .github/actions/validate/scripts/run_validation.py: one bad file
+    in a batch of fifty should not prevent reporting on the other
+    forty-nine.
+    """
+
+    file_path: str
+    result: "CheckResult | None"
+    read_error: str | None = None
+
+    @property
+    def has_errors(self) -> bool:
+        # An unreadable file counts as an error for batch-level
+        # aggregation -- a file that couldn't even be checked is not
+        # a "clean" file.
+        if self.read_error is not None:
+            return True
+        return self.result is not None and self.result.has_errors
+
+    def to_dict(self) -> dict:
+        if self.read_error is not None:
+            return {"file": self.file_path, "read_error": self.read_error}
+        return {"file": self.file_path, **self.result.to_dict()}
+
+
+@dataclass
+class BatchCheckResult:
+    """Result of checking multiple files at once -- check_directory()'s
+    return type. Aggregates per-file FileCheckEntry results without
+    losing per-file detail, since a caller needs both "is the whole
+    batch clean" (for a CI pass/fail decision) and "which specific
+    files had problems" (for a useful report).
+    """
+
+    entries: list[FileCheckEntry]
+
+    @property
+    def total_files(self) -> int:
+        return len(self.entries)
+
+    @property
+    def files_with_errors(self) -> list[str]:
+        return [e.file_path for e in self.entries if e.has_errors]
+
+    @property
+    def clean_files(self) -> list[str]:
+        return [e.file_path for e in self.entries if not e.has_errors]
+
+    @property
+    def has_any_errors(self) -> bool:
+        return any(e.has_errors for e in self.entries)
+
+    def to_dict(self) -> dict:
+        return {
+            "total_files": self.total_files,
+            "clean_files": self.clean_files,
+            "files_with_errors": self.files_with_errors,
+            "has_any_errors": self.has_any_errors,
+            "entries": [e.to_dict() for e in self.entries],
+        }
+
+
+def check_directory(
+    directory: str | Path,
+    *,
+    pattern: str = "*.xml",
+    recursive: bool = False,
+    message_type: str = "pacs.008",
+    explain: bool = False,
+) -> BatchCheckResult:
+    """Checks every file matching `pattern` under `directory`. This is
+    the "many files, one summary" use case -- a treasury-ops team with
+    a folder of outgoing payment files, or a CI step checking
+    everything under payments/ at once, without needing S3 or a
+    database; just a local folder.
+
+    Deliberately does NOT raise on the first unreadable file -- per
+    FileCheckEntry's docstring, one bad file in a batch must not
+    prevent reporting on the rest. A file that can't be read at all
+    (binary, permission denied, etc.) is recorded with read_error set;
+    a file that reads fine but has validation violations is recorded
+    with its normal CheckResult, same as check_file() would produce.
+
+    recursive=True uses Path.rglob() instead of Path.glob() -- off by
+    default since a caller scanning a large directory tree
+    accidentally (e.g. pointing this at a repo root instead of a
+    payments/ subfolder) would otherwise silently check far more files
+    than intended.
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise NotADirectoryError(f"{directory} is not a directory.")
+
+    glob_fn = directory.rglob if recursive else directory.glob
+    matched_files = sorted(glob_fn(pattern))
+
+    entries: list[FileCheckEntry] = []
+    for file_path in matched_files:
+        try:
+            result = check_file(file_path, message_type=message_type, explain=explain)
+            entries.append(FileCheckEntry(file_path=str(file_path), result=result))
+        except (UnicodeDecodeError, PermissionError, IsADirectoryError) as e:
+            entries.append(
+                FileCheckEntry(
+                    file_path=str(file_path),
+                    result=None,
+                    read_error=f"{type(e).__name__}: {e}",
+                )
+            )
+
+    return BatchCheckResult(entries=entries)
+
+
 def _run_all_checks(xml_str: str) -> list[Violation]:
     """The proven assembly logic, originally written in cli.py as
     _run_all_checks(Path) -- moved here as the single source of truth
