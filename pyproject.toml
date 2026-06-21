@@ -30,6 +30,12 @@ dependencies = [
     "pydantic>=2.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/iso-tollgate/tollgate"
+Repository = "https://github.com/iso-tollgate/tollgate"
+Issues = "https://github.com/iso-tollgate/tollgate/issues"
+Documentation = "https://github.com/iso-tollgate/tollgate/blob/main/docs/usage.md"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",

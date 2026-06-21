@@ -2,7 +2,7 @@
 
 **Catches ISO 20022 payment messages that pass schema validation and still get rejected by the network — before you find out the hard way.**
 
-[![Tests](https://img.shields.io/badge/tests-152%20passing-brightgreen)](#status) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-163%20passing-brightgreen)](#status) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 
 A pacs.008 payment message can be 100% valid XML, pass every XSD check, and still bounce off a real clearing network — because some of the rules that matter live outside the schema entirely. Tollgate catches that gap.
 
@@ -69,7 +69,7 @@ Details and examples for all three: [`docs/usage.md`](docs/usage.md).
 
 ## Status
 
-155 tests passing (152 deterministic/local + 3 live API tests, all confirmed passing against the real Anthropic API), 0 skipped when an `ANTHROPIC_API_KEY` is set — and 152 passing with the 3 API tests skipping cleanly when it isn't, so the full deterministic suite (every validation rule, the generator, the eval harness, both APIs) needs zero API key to verify.
+166 tests passing (163 deterministic/local + 3 live API tests, all confirmed passing against the real Anthropic API), 0 skipped when an `ANTHROPIC_API_KEY` is set — and 163 passing with the 3 API tests skipping cleanly when it isn't, so the full deterministic suite (every validation rule, the generator, the eval harness, both APIs) needs zero API key to verify.
 
 `--explain` has been live-tested against the real model: it correctly names the violated field and cause, and correctly hedges on warning-severity (heuristic) findings rather than asserting them as certain failures — verified, not assumed.
 
