@@ -332,3 +332,57 @@ copied from a secondary blog post's partial list -- the sources found
 during this research were consistent with each other but none of them
 is the primary published standard itself.
 
+## seventh-rule-candidate-bicfi-clrsysmmbid-precedence (RESEARCH ONLY -- NOT IMPLEMENTED)
+
+Researched 2026-06-21, NOT yet built. A genuinely DIFFERENT kind of
+gotcha than the project's existing six rules -- worth naming the
+distinction explicitly before deciding whether to build it.
+
+**THE GOTCHA:** An agent element (DbtrAgt, CdtrAgt, etc.) can carry
+both a BICFI and a ClrSysMmbId (clearing system member ID / routing
+number) simultaneously -- the schema's FinancialInstitutionIdentification18
+type allows both as independent optional siblings in a plain sequence,
+not an xs:choice. Deutsche Bank's own CBPR+-based payments formatting
+guide states explicitly: "In case of conflicting information, the
+BICFI will take precedence over additionally provided ClrSysMmbId
+and/or Name/Postal [Address]" (https://corporates.db.com/files/documents/Payments-Formatting-Guide-for-high-value-payments-ISO-20022.pdf).
+
+**VERIFIED AGAINST THE ACTUAL VENDORED XSD (2026-06-21):**
+FinancialInstitutionIdentification18 lists BICFI (minOccurs=0) and
+ClrSysMmbId (minOccurs=0) as independent sibling elements in a plain
+xs:sequence -- both can be populated with no schema-level constraint
+forcing them to agree.
+
+**WHY THIS IS A DIFFERENT FAILURE MODE than the project's existing six
+rules:** every other rule in this project catches something that gets
+REJECTED (a hard failure) or is internally inconsistent in an
+objectively checkable way (wrong decimal count, wrong character).
+This gotcha is about SILENT PRECEDENCE -- the message doesn't get
+rejected at all; one field quietly wins over another, and if the
+sender intended the routing number to matter (e.g. for a domestic
+clearing system) but the BICFI doesn't match, the payment may route
+differently than intended without any error being raised anywhere.
+
+**HONEST LIMITATION, the reason this is research-only and not
+implemented:** Tollgate cannot actually verify whether a given BICFI
+and ClrSysMmbId value are "in conflict" with each other -- that would
+require an external BIC-to-routing-number directory/lookup table,
+which does not exist anywhere in this project and would be a
+significantly larger undertaking than any of the six existing rules
+(a real BIC registry is large, requires its own licensing/sourcing
+research, and changes over time). What this rule COULD honestly do
+without that lookup table: flag whenever BOTH BICFI and ClrSysMmbId
+are populated on the same agent at all, with an explanation noting the
+precedence rule and that this is worth double-checking even though
+Tollgate cannot confirm an actual conflict exists. That's a much
+weaker claim than the project's other rules make, and worth being
+explicit about in the explanation text if this is ever built --
+overstating certainty here would be the kind of overclaiming this
+project's brief explicitly warned against.
+
+**Additional scope needed if built:** the generator
+(synthetic_fixtures.py) does not currently populate ClrSysMmbId at all
+-- `_build_agent()` only ever sets BICFI. Building this rule would
+also require extending the generator, similar to how
+include_ultimate_parties was added for the address rules.
+
