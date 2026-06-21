@@ -72,7 +72,7 @@ Details and examples for all three: [`docs/usage.md`](docs/usage.md).
 
 `--explain` has been live-tested against the real model: it correctly names the violated field and cause, and correctly hedges on warning-severity (heuristic) findings rather than asserting them as certain failures — verified, not assumed.
 
-Published on PyPI: `pip install iso-tollgate`. A Homebrew tap is in progress at [`homebrew-tollgate`](https://github.com/iso-tollgate/homebrew-tollgate).
+Published on PyPI: `pip install iso-tollgate`. A Homebrew tap exists at [`homebrew-tollgate`](https://github.com/iso-tollgate/homebrew-tollgate) — CI verifies the formula's syntax and style on every change, but a full `brew install` hasn't been confirmed end-to-end yet, so `pip install` is the recommended path for now.
 
 ## License
 
