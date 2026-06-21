@@ -24,7 +24,7 @@ This split exists because trusting every word of a conservative tool beats trust
 
 Tollgate processes real bank payment data. That data does not casually leave your machine.
 
-- The five deterministic checks run entirely locally. Nothing is sent anywhere unless you explicitly pass `--explain`.
+- The six deterministic checks run entirely locally. Nothing is sent anywhere unless you explicitly pass `--explain`.
 - When `--explain` is used, only the rule name, the field path (a structural reference like `Dbtr/Nm`, not a value), the deterministic finding text, and a source citation are sent to the Anthropic API.
 - The actual offending value (a real name, a real address fragment) is **never sent to the API**, even with `--explain` on. It appears only in local output — your own console report, your own JSON output, your own markdown report — never in the API payload. This is enforced in code and verified by a test that mocks the API client and inspects the literal payload sent (`tests/test_data_handling.py`).
 - See [`docs/SOURCES.md`](SOURCES.md)'s `data-handling-ai-boundary` section for the full reasoning and what was found and fixed.

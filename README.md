@@ -9,9 +9,7 @@ A pacs.008 payment message can be 100% valid XML, pass every XSD check, and stil
 ## Quickstart
 
 ```bash
-git clone https://github.com/iso-tollgate/tollgate.git
-cd tollgate
-pip install -e .
+pip install iso-tollgate
 ```
 
 ```bash
@@ -50,6 +48,7 @@ One message type in v1: **pacs.008.001.08**, the FI-to-FI customer credit transf
 | Address structure | Free-format addresses used where structure is required, or line counts the schema allows but a network's guidelines don't. |
 | Truncation signals | A value landing at exactly 35 or 70 characters — old legacy line limits — in a field with a much higher modern limit. Reported as a warning, not a certainty. |
 | Network-mandatory gaps | Fields the schema marks optional that a real network requires in practice (e.g. UETR for Fedwire). |
+| Currency decimal precision | An amount's decimal places don't match its currency's defined exponent (e.g. JPY, which has zero decimal places, formatted with two). Reported as a warning — the failure mode is silent misinterpretation, not certain rejection. |
 
 Every rule traces to a primary source — see [`docs/SOURCES.md`](docs/SOURCES.md). No rule ships without one.
 
@@ -69,11 +68,11 @@ Details and examples for all three: [`docs/usage.md`](docs/usage.md).
 
 ## Status
 
-166 tests passing (163 deterministic/local + 3 live API tests, all confirmed passing against the real Anthropic API), 0 skipped when an `ANTHROPIC_API_KEY` is set — and 163 passing with the 3 API tests skipping cleanly when it isn't, so the full deterministic suite (every validation rule, the generator, the eval harness, both APIs) needs zero API key to verify.
+163 tests passing, 3 skip cleanly without an `ANTHROPIC_API_KEY` set (these 3 exercise `--explain` against the real Anthropic API and were live-verified once, 2026-06-21, on a real machine with a real key — see `CLAUDE.md` for the re-verification rule if `explainer.py` or `prompts.py` change). The full deterministic suite — every validation rule, the generator, the eval harness, both APIs — needs zero API key to verify.
 
 `--explain` has been live-tested against the real model: it correctly names the violated field and cause, and correctly hedges on warning-severity (heuristic) findings rather than asserting them as certain failures — verified, not assumed.
 
-Not yet on PyPI or Homebrew — clone-and-install is the path for now. A Homebrew tap is scaffolded in [`homebrew-tollgate/`](https://github.com/iso-tollgate/homebrew-tollgate) for once a tagged release exists.
+Published on PyPI: `pip install iso-tollgate`. A Homebrew tap is in progress at [`homebrew-tollgate`](https://github.com/iso-tollgate/homebrew-tollgate).
 
 ## License
 

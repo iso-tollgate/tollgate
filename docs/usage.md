@@ -5,6 +5,12 @@ Every example below was run against the actual codebase before being written dow
 ## Install
 
 ```bash
+pip install iso-tollgate
+```
+
+Or from source, for development:
+
+```bash
 git clone https://github.com/iso-tollgate/tollgate.git
 cd tollgate
 pip install -e .
@@ -17,7 +23,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-Requires Python 3.11+. Not yet published to PyPI — clone-and-install is the only path for now.
+Requires Python 3.11+.
 
 ## CLI: check a single file
 
@@ -27,7 +33,7 @@ tollgate validate payment.xml
 
 A clean message:
 ```
-✓ payment.xml -- no issues found across all five checks.
+✓ payment.xml -- no issues found across all 6 checks.
 ```
 
 A message with a problem — exit code is `1`:

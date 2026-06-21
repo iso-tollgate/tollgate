@@ -74,6 +74,17 @@ grep -rn "163 passing\|166 tests\|<old-number>" README.md docs/
 
 This has happened at least once already in this project (a README badge said "152 passing" after the real count had moved to 163).
 
+## `poet` fails with `ModuleNotFoundError: No module named 'pkg_resources'`
+
+`homebrew-pypi-poet` (used to generate Homebrew formula `resource` blocks from a PyPI package's dependency tree) is an old tool that assumes `pkg_resources` is always available from `setuptools`. Recent `setuptools` versions (82.x+, as installed by default in a fresh venv as of mid-2026) stopped vendoring `pkg_resources`. Fix, inside the same throwaway venv used for `poet`:
+
+```bash
+pip install setuptools==68.2.2
+poet iso-tollgate
+```
+
+This pins `setuptools` to a version that still ships `pkg_resources`. Safe to do in a disposable `/tmp` venv — does not affect the real project's dependencies. Hit and fixed 2026-06-21.
+
 ## Sandbox-vs-local environment differences (for anyone working with Claude across sessions)
 
 Claude's sandbox cannot reach `api.anthropic.com` (the live Anthropic API) — only a fixed allowlist (PyPI, npm, GitHub, crates.io). This means:

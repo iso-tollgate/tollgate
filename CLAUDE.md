@@ -55,8 +55,8 @@ Validation logic (does X violate a rule) is deterministic Python, never an LLM c
 ## Repo layout
 
 - `github.com/iso-tollgate/tollgate` — main repo
-- `github.com/iso-tollgate/homebrew-tollgate` — Homebrew tap, scaffolded but not live (needs a real PyPI release with sdist + sha256 first)
-- Not yet published to PyPI as of this writing — see `docs/SOURCES.md` and session history for the dry-run build verification already done (sdist/wheel build correctly, schema file is bundled, `twine check` passes).
+- `github.com/iso-tollgate/homebrew-tollgate` — Homebrew tap. Formula targets the real published `iso-tollgate==0.1.0` sdist (verified sha256, resource blocks for all dependencies generated via `homebrew-pypi-poet`). `brew install --build-from-source`, `brew test`, and `brew audit --strict --online` still need to be run for real on a machine with Homebrew — not verifiable in this sandbox.
+- Published to PyPI as `iso-tollgate`, first release `0.1.0` (2026-06-21). `pip install iso-tollgate` works end-to-end, confirmed via a clean-venv install test.
 
 ## Don't
 

@@ -269,7 +269,7 @@ def _run_all_checks(xml_str: str) -> list[Violation]:
     _run_all_checks(Path) -- moved here as the single source of truth
     and changed to take a string directly (the CLI now reads the file
     itself and calls this), so there's exactly one place that decides
-    "what order do the five rules run in, and what happens if the
+    "what order do the six rules run in, and what happens if the
     document can't be parsed at all."
     """
     violations: list[Violation] = []

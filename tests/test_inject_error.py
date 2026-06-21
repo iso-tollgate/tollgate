@@ -1,13 +1,18 @@
-"""Tests for inject_error() across all seven RuleId values.
+"""Tests for inject_error() across the address/charset/truncation/mandatory-gap
+RuleId values (5 of the project's 8 RuleId values -- xsd_structural is
+tested separately since it's not an injector-driven rule the same way,
+and currency_decimal_mismatch is NOT currently cross-checked here; see
+test_currency_rule.py, which only verifies it against validate_xsd, not
+against the other four detectors below).
 
 The property that matters most for eval-harness trustworthiness: each
 injected fixture must trigger EXACTLY its own corresponding rule and
 no others. If an injector accidentally trips a second, unrelated rule,
 the eval harness can't cleanly score "did the AI identify the injected
 problem" -- it becomes ambiguous which violation the explanation was
-supposed to address. Every test below checks all five detectors
-against each single-purpose injection, not just the one it expects to
-fire.
+supposed to address. Every test below checks all five of the detectors
+imported here against each single-purpose injection, not just the one
+it expects to fire.
 """
 
 from pathlib import Path

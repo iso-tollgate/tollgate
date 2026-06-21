@@ -7,8 +7,8 @@
     tollgate generate --count 5 --rule-id charset_violation
 
 DESIGN NOTE on --explain: AI explanation is opt-in, not the default.
-Deterministic checks (XSD, charset, address, truncation, mandatory-gap)
-always run -- they're free, fast, and local. explain_violation() makes
+Deterministic checks (XSD, charset, address, truncation, mandatory-gap,
+currency-decimal) always run -- they're free, fast, and local. explain_violation() makes
 a real, billed call to the Anthropic API per violation -- live-verified
 2026-06-21, see tests/test_explainer.py. The opt-in design itself
 doesn't change now that it's verified: defaulting to always calling it
@@ -119,9 +119,18 @@ def validate(
         raise typer.Exit(code=1)
 
 
+RULE_COUNT = 6  # XSD, charset, address, truncation, mandatory-gap, currency-decimal.
+# Bump this AND the cli.py module docstring whenever a 7th rule ships --
+# RuleId enum count (models.py) is NOT the same number: address structure
+# alone covers 3 RuleId values (freeform-only, missing-town/country,
+# too-many-lines) for one user-facing "check."
+
+
 def _print_console_report(result: CheckResult, message_path: Path) -> None:
     if result.is_clean:
-        console.print(f"[green]✓[/green] {message_path} -- no issues found across all five checks.")
+        console.print(
+            f"[green]✓[/green] {message_path} -- no issues found across all {RULE_COUNT} checks."
+        )
         return
 
     errors = [v for v in result.violations if v.severity == "error"]
