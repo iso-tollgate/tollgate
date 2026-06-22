@@ -386,3 +386,135 @@ project's brief explicitly warned against.
 also require extending the generator, similar to how
 include_ultimate_parties was added for the address rules.
 
+## eighth-rule-candidate-bicfi-name-address-mutual-exclusion (RESEARCH ONLY -- NOT IMPLEMENTED)
+
+Researched 2026-06-21, NOT yet built into a validation rule. Recorded
+here so the research is preserved and sourced before any code gets
+written, per this project's own convention.
+
+**THE GOTCHA:** CBPR+'s usage guideline for agent identification
+states a textual rule not present anywhere in the XSD: if BICFI is
+present on an agent, Name and Postal Address must NOT also be
+present. The exact wording, reproduced verbatim across multiple
+official CBPR+ usage guideline documents (see sources below): "If
+BICFI is present, then (Name & Postal Address) is NOT allowed
+(ClearingSystemMemberIdentification and LEI may complement) -- However,
+in case of conflicting information, the BICFI will always take
+precedence." The same document states the reverse direction too: "If
+BICFI is absent, (Name & Postal Address) OR [(Name & Postal Address)
+and ClearingSystemMemberIdentification] must be present." So this is a
+genuine mutual-exclusion rule, not a one-directional recommendation.
+
+A parallel rule exists for Debtor/Creditor party identification
+(distinct element, AnyBIC instead of BICFI, but identical shape): "If
+AnyBIC is present, then (Name and Postal Address) is NOT allowed."
+
+**VERIFIED AGAINST THE ACTUAL VENDORED XSD (2026-06-21):**
+FinancialInstitutionIdentification18 (used for every Agt element --
+DbtrAgt, CdtrAgt, InstgAgt, InstdAgt, IntrmyAgt1/2/3, etc.) lists
+BICFI, ClrSysMmbId, LEI, Nm, PstlAdr, and Othr as six independent
+sibling elements in a plain xs:sequence, every one minOccurs="0" with
+no xs:choice, no co-occurrence constraint, nothing. A message can
+validly populate BICFI AND Nm AND PstlAdr simultaneously on the same
+agent and pass XSD validation with zero errors -- the schema places
+no structural relationship between them at all. Confirmed the same
+shape on the party side: PartyIdentification135 (used for Dbtr, Cdtr)
+has Nm and PstlAdr as direct siblings, with AnyBIC nested independently
+inside Id (Party38Choice) -- again, no schema-level exclusivity.
+
+This is structurally distinct from the seventh-rule-candidate above
+(BICFI/ClrSysMmbId precedence): that one is about whether two
+*conflicting values* on the same agent disagree about routing: this
+one is about *simultaneous presence* of fields that should never
+co-occur in the first place, regardless of whether their values agree
+or conflict. Different failure mode, different (much simpler) check --
+this one is pure structural co-occurrence, no value-conflict judgment
+needed, no external lookup table required. That makes it considerably
+more buildable than the seventh candidate.
+
+**Sources -- the exact same textual rule, verbatim, found across
+eight separate official SWIFT CBPR+ / Lynx usage guideline documents,**
+which is a stronger corroboration chain than most rules in this file
+get from independent secondary sources, since this is the same
+standards body's own canonical wording repeated across its message
+family rather than several authors independently describing the same
+behavior:
+
+- **CBPRPlus-pacs.008.001.08_FIToFICustomerCreditTransfer Usage
+  Guideline** (the exact message type this project validates) --
+  states both the agent rule (BICFI) and the party rule (AnyBIC)
+  explicitly, plus the reverse-direction requirement.
+  URL: https://www.clearstream.com/caas/v1/media/4151636/data/56d74336ef4c09ed02789f28d1ab6f3f/pacs-008-2.pdf
+- **CBPRPlus-pacs.002.001.10_FIToFIPaymentStatusReport Usage Guideline**
+  -- identical agent rule, plus an additional detail not seen in the
+  pacs.008 guideline: "If AnyBIC is absent, then Name is mandatory."
+  and "If Postal Address is present then Name is mandatory."
+  URL: https://www.clearstream.com/caas/v1/media/4151632/data/b19516ff2c3e11879b5be608f8053513/pacs-002.pdf
+- **CBPRPlus-camt.052/053/054 and camt.105 Usage Guidelines** --
+  same verbatim agent rule repeated across the reporting message
+  family, confirming this is a message-family-wide CBPR+ principle,
+  not something specific to pacs.008.
+  URLs: https://www.clearstream.com/caas/v1/media/4151626/...
+  (camt.052), .../4151644/... (camt.053), .../4151648/... (camt.054),
+  .../4847152/... (camt.105)
+- **Lynx (Payments Canada) ISO 20022 message specification** --
+  independently confirms the same rule, explicitly noting "This rule
+  is inherited verbatim from CBPR+," for both pacs.009 and its broader
+  companion document -- useful as cross-confirmation that this isn't
+  a Clearstream-specific reinterpretation, since Lynx is a different
+  market infrastructure entirely just adopting the same CBPR+ baseline.
+  URLs: https://www.payments.ca/sites/default/files/lynx_financial_institution_credit_transfer_pacs.009_core.pdf
+  and https://www.payments.ca/sites/default/files/2022-08/lynx_iso_20022_message_specification_companion_document_for_core_messages.pdf
+- **Deutsche Bank Corporate Bank Payments Formatting Guide, May 2025**
+  -- a bank's own client-facing implementation guide independently
+  stating the same rule in its own words ("As per CBPR+ if BICFI is
+  present, then Name & Postal Address is not allowed"), useful as a
+  practitioner-level confirmation that this is actually enforced in
+  real processing, not just a guideline nobody follows.
+  URL: https://corporates.db.com/files/documents/Payments-Formatting-Guide-for-high-value-payments-ISO-20022.pdf
+
+**CAVEAT, same shape as every other rule in this file:** this is a
+CBPR+/SWIFT-network rule, not a universal ISO 20022 rule. Don't assume
+every clearing system enforces this the same way -- confirm for the
+specific target network before generalizing the explanation text.
+Severity should likely be `error` rather than `warning`, since unlike
+the currency-decimal rule (a "might be silently misinterpreted" case)
+this is stated as a hard textual rule with explicit rejection
+implications ("NOT allowed"), closer in certainty to the charset and
+address-structure rules.
+
+**What would be needed to actually build this:** walk every Agt
+element (DbtrAgt, CdtrAgt, InstgAgt, InstdAgt, IntrmyAgt1/2/3,
+PrvsInstgAgt1/2/3) and every party element (Dbtr, Cdtr) checking: does
+BICFI/AnyBIC co-occur with Nm or PstlAdr on the same element? No
+external lookup table needed (unlike the seventh candidate) -- this is
+pure structural presence-checking, similar in implementation
+complexity to the existing address-structure rule.
+
+**IMPORTANT, VERIFIED FINDING (2026-06-21):** `_build_agent()` in
+synthetic_fixtures.py currently sets BOTH BICFI and Nm on every agent
+it builds, unconditionally, by design -- its own docstring calls this
+"the simpler, more common path." Every DbtrAgt and CdtrAgt in every
+single baseline fixture this project has ever generated already
+violates this CBPR+ rule as researched above. This has never been
+caught because no rule currently checks for it.
+
+This means building this rule is NOT a simple additive change --
+build_valid_baseline() would need `_build_agent()` fixed first (BICFI
+without Nm, as the actual common/correct case) before this rule could
+be added without every single existing "clean" baseline fixture
+immediately and incorrectly failing it. This is the same category of
+bug as the JPY-decimal generator bug found while building the sixth
+rule (see currency_decimal_mismatch above) -- a latent baseline-
+generator defect that only became visible once a rule existed to
+check for it. Whoever picks this up should fix _build_agent() and
+verify test_inject_error.py's existing tests for the other 6 rules
+still pass against the corrected baseline (they should -- this change
+doesn't touch address/charset/truncation/mandatory-gap/currency
+fixtures' shape) before adding the new rule and injector on top.
+
+The generator would then need a new injector that deliberately sets
+BICFI alongside Nm/PstlAdr (the now-fixed-to-be-wrong combination) to
+produce the labeled violation fixture for eval-harness ground truth.
+
+

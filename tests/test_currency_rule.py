@@ -9,6 +9,11 @@ silently producing decimally-invalid JPY fixtures since the project's
 first session -- never caught before because no rule checked decimal
 precision until this one existed. test_generator_jpy_fix_regression
 exists specifically to guard against this regressing.
+
+This file only checks check_currency_decimal_precision against
+validate_xsd. The cross-contamination property (does injecting a
+currency violation accidentally trip the other 5 detectors, and vice
+versa) is checked in test_inject_error.py, added there 2026-06-21.
 """
 
 from pathlib import Path

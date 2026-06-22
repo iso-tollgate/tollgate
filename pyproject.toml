@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iso-tollgate"
-version = "0.1.0"
+version = "0.1.1"
 description = "Pre-submission safety gate for ISO 20022 payment messages. Catches the gap between schema-valid and network-acceptable before you submit."
 readme = "README.md"
 license = "Apache-2.0"

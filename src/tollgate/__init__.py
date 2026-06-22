@@ -19,7 +19,7 @@ See tollgate.api for the full public API and its design rationale.
 
 from tollgate.api import BatchCheckResult, CheckResult, check_directory, check_file, check_message
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "check_message",

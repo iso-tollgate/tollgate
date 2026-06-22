@@ -1,8 +1,12 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/iso-tollgate/tollgate/main/assets/logo.png" alt="Tollgate logo" width="200">
+</p>
+
 # tollgate
 
 **Catches ISO 20022 payment messages that pass schema validation and still get rejected by the network — before you find out the hard way.**
 
-[![Tests](https://img.shields.io/badge/tests-163%20passing-brightgreen)](#status) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-168%20passing-brightgreen)](#status) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 
 A pacs.008 payment message can be 100% valid XML, pass every XSD check, and still bounce off a real clearing network — because some of the rules that matter live outside the schema entirely. Tollgate catches that gap.
 
@@ -68,7 +72,7 @@ Details and examples for all three: [`docs/usage.md`](docs/usage.md).
 
 ## Status
 
-163 tests passing, 3 skip cleanly without an `ANTHROPIC_API_KEY` set (these 3 exercise `--explain` against the real Anthropic API and were live-verified once, 2026-06-21, on a real machine with a real key — see `CLAUDE.md` for the re-verification rule if `explainer.py` or `prompts.py` change). The full deterministic suite — every validation rule, the generator, the eval harness, both APIs — needs zero API key to verify.
+168 tests passing, 3 skip cleanly without an `ANTHROPIC_API_KEY` set (these 3 exercise `--explain` against the real Anthropic API and were live-verified once, 2026-06-21, on a real machine with a real key — see `CLAUDE.md` for the re-verification rule if `explainer.py` or `prompts.py` change). The full deterministic suite — every validation rule, the generator, the eval harness, both APIs — needs zero API key to verify.
 
 `--explain` has been live-tested against the real model: it correctly names the violated field and cause, and correctly hedges on warning-severity (heuristic) findings rather than asserting them as certain failures — verified, not assumed.
 
